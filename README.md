@@ -2,7 +2,6 @@
 
 An interactive, gesture-controlled web experience inspired by Disney's *Tangled*. This application uses a standard webcam to track your hand movements in real-time, allowing you to release the sun's magic, paint with golden light, and summon a festival of floating lanterns.
 
-
 ---
 
 ## 🤖 Collaborative AI Engineering
