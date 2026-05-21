@@ -1,0 +1,888 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tangled — Where the Sun's Magic Lives</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700&family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --gold: #FFD700;
+    --gold-dim: #FFA500;
+    --deep-purple: #0a0216;
+  }
+
+  html, body {
+    width: 100%; height: 100%;
+    overflow: hidden;
+    background: var(--deep-purple);
+    font-family: 'Cormorant Garamond', serif;
+    color: #fff;
+    cursor: none;
+  }
+
+  #cursor {
+    position: fixed; top: 0; left: 0;
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    background: radial-gradient(circle, #FFD700 0%, rgba(255,165,0,0.4) 70%, transparent 100%);
+    pointer-events: none;
+    z-index: 9999;
+    transform: translate(-50%, -50%);
+    transition: transform 0.08s ease;
+    mix-blend-mode: screen;
+  }
+
+  #mainCanvas {
+    position: fixed; top: 0; left: 0;
+    width: 100%; height: 100%;
+    display: block;
+  }
+
+  #videoFeed {
+    position: fixed; bottom: 16px; right: 16px;
+    width: 160px; height: 120px;
+    border-radius: 12px;
+    border: 1px solid rgba(255,215,0,0.3);
+    opacity: 0.7;
+    z-index: 100;
+    transform: scaleX(-1);
+    display: none;
+    object-fit: cover;
+  }
+
+  /* ─── ORIGINAL INIT Overlay ─── */
+  #initOverlay {
+    position: fixed; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    z-index: 200;
+    background: radial-gradient(ellipse at center, #1a0833 0%, #0a0216 70%);
+    transition: opacity 1.5s ease;
+  }
+  #initOverlay.fade-out { opacity: 0; pointer-events: none; }
+
+  .init-title {
+    font-family: 'Cinzel Decorative', serif;
+    font-size: clamp(1.8rem, 4vw, 3.2rem);
+    letter-spacing: 0.12em;
+    color: var(--gold);
+    text-shadow: 0 0 40px rgba(255,215,0,0.5), 0 0 80px rgba(255,165,0,0.2);
+    margin-bottom: 0.4em;
+    text-align: center;
+    padding: 0 1rem;
+  }
+  .init-sub {
+    font-style: italic;
+    font-size: clamp(0.9rem, 2vw, 1.2rem);
+    color: rgba(255,215,0,0.6);
+    letter-spacing: 0.06em;
+    margin-bottom: 3rem;
+    text-align: center;
+  }
+
+  #flowerSVG {
+    width: 140px; height: 140px;
+    margin-bottom: 2.5rem;
+    filter: drop-shadow(0 0 20px rgba(255,215,0,0.4));
+    animation: floatBulb 3s ease-in-out infinite;
+  }
+  @keyframes floatBulb {
+    0%,100% { transform: translateY(0); }
+    50% { transform: translateY(-12px); }
+  }
+
+  #startBtn {
+    position: relative;
+    padding: 1rem 2.5rem;
+    background: rgba(255,215,0,0.08);
+    border: 1px solid rgba(255,215,0,0.4);
+    border-radius: 50px;
+    color: var(--gold);
+    font-family: 'Cinzel Decorative', serif;
+    font-size: 0.95rem;
+    letter-spacing: 0.12em;
+    cursor: pointer;
+    backdrop-filter: blur(12px);
+    transition: all 0.3s ease;
+    box-shadow: 0 0 30px rgba(255,215,0,0.1), inset 0 0 20px rgba(255,215,0,0.04);
+  }
+  #startBtn:hover {
+    background: rgba(255,215,0,0.15);
+    transform: translateY(-2px);
+  }
+
+  /* ─── Brush Controls ─── */
+  #brushControls {
+    position: fixed; right: 24px; top: 50%; transform: translateY(-50%);
+    background: rgba(20, 8, 40, 0.65); backdrop-filter: blur(16px);
+    border: 1px solid rgba(255,215,0,0.25); border-radius: 20px;
+    padding: 24px; flex-direction: column; gap: 20px;
+    z-index: 150; box-shadow: 0 10px 30px rgba(0,0,0,0.5); width: 220px;
+    /* Smooth transition properties */
+    display: flex;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 1.5s ease, visibility 1.5s ease;
+  }
+  #brushControls.visible { opacity: 1; visibility: visible; }
+
+  .control-group { display: flex; flex-direction: column; gap: 8px; }
+  .control-group label {
+    font-family: 'Cinzel Decorative', serif; font-size: 0.65rem;
+    letter-spacing: 0.2em; color: rgba(255,215,0,0.7); text-transform: uppercase;
+  }
+
+  .swatch-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; justify-items: center; }
+  .swatch {
+    width: 28px; height: 28px; border-radius: 50%; cursor: pointer;
+    border: 2px solid transparent; transition: transform 0.2s, border-color 0.2s;
+  }
+  .swatch.active { border-color: #fff; transform: scale(1.2); box-shadow: 0 0 10px currentColor; }
+  
+  .tool-row { display: flex; gap: 10px; }
+  .tool-btn {
+    flex: 1; padding: 6px; background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,215,0,0.3); border-radius: 8px; color: #ccc;
+    font-family: 'Cinzel Decorative', serif; font-size: 0.7rem; letter-spacing: 0.1em;
+    cursor: pointer; transition: all 0.2s;
+  }
+  .tool-btn.active, .tool-btn:hover { background: rgba(255,215,0,0.2); color: var(--gold); border-color: var(--gold); }
+
+  .slider-container { display: flex; align-items: center; gap: 10px; }
+  .slider-container input[type="range"] { flex: 1; accent-color: var(--gold); cursor: pointer; }
+  .val-label { font-family: sans-serif; font-size: 0.7rem; color: #ccc; width: 20px; text-align: right; }
+
+  .action-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .action-btn {
+    padding: 8px 0; background: rgba(255, 215, 0, 0.1);
+    border: 1px solid rgba(255, 215, 0, 0.4); border-radius: 8px; color: var(--gold);
+    font-family: 'Cinzel Decorative', serif; font-size: 0.7rem; letter-spacing: 0.1em;
+    cursor: pointer; transition: all 0.2s;
+  }
+  .action-btn.full { grid-column: span 2; }
+  .action-btn:hover { background: rgba(255, 215, 0, 0.25); box-shadow: 0 0 15px rgba(255, 215, 0, 0.2); }
+
+  /* ─── HUD & UI ─── */
+  #hud {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    z-index: 150; flex-direction: column; align-items: center; gap: 6px;
+    pointer-events: none; text-align: center;
+    /* Smooth transition properties */
+    display: flex;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 1.5s ease, visibility 1.5s ease;
+  }
+  #hud.visible { opacity: 1; visibility: visible; }
+  .hud-label {
+    font-family: 'Cinzel Decorative', serif; font-size: 0.7rem; letter-spacing: 0.2em;
+    color: rgba(255,215,0,0.7); text-transform: uppercase;
+  }
+  .hud-instruction { font-style: italic; font-size: 0.85rem; color: rgba(255,215,0,0.5); }
+
+  #bloomRing {
+    position: fixed; top: 24px; left: 50%; transform: translateX(-50%);
+    z-index: 150; align-items: center; gap: 10px;
+    /* Smooth transition properties */
+    display: flex;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 1s ease, visibility 1s ease;
+  }
+  #bloomRing.visible { opacity: 1; visibility: visible; }
+  #bloomRingLabel {
+    font-family: 'Cinzel Decorative', serif; font-size: 0.65rem; color: rgba(255,215,0,0.6); letter-spacing: 0.15em;
+  }
+
+  #fistTimer {
+    position: fixed; top: 24px; left: 24px;
+    z-index: 150; align-items: center; flex-direction: column; gap: 4px;
+    display: flex; opacity: 0; visibility: hidden; transition: opacity 0.3s ease, visibility 0.3s ease;
+  }
+  #fistTimer.visible { opacity: 1; visibility: visible; }
+  #fistTimerLabel { font-family: 'Cinzel Decorative', serif; font-size: 0.65rem; color: rgba(255,215,0,0.6); letter-spacing: 0.15em; }
+  
+  #stateLabel {
+    position: fixed; top: 18px; right: 18px;
+    font-family: 'Cinzel Decorative', serif;
+    font-size: 0.6rem; letter-spacing: 0.2em; color: rgba(255,215,0,0.35);
+    z-index: 150; text-transform: uppercase;
+  }
+</style>
+</head>
+<body>
+
+<div id="cursor"></div>
+<video id="videoFeed" playsinline autoplay muted></video>
+<canvas id="mainCanvas"></canvas>
+
+<div id="brushControls">
+  <div class="control-group">
+    <label>Pigment</label>
+    <div class="swatch-grid">
+      <div class="swatch active" style="background: #FFD700; color: #FFD700" data-color="#FFD700"></div> 
+      <div class="swatch" style="background: #FF1493; color: #FF1493" data-color="#FF1493"></div> 
+      <div class="swatch" style="background: #00FFFF; color: #00FFFF" data-color="#00FFFF"></div> 
+      <div class="swatch" style="background: #39FF14; color: #39FF14" data-color="#39FF14"></div> 
+      <div class="swatch" style="background: #9400D3; color: #9400D3" data-color="#9400D3"></div> 
+      <div class="swatch" style="background: #FFFFFF; color: #FFFFFF" data-color="#FFFFFF"></div> 
+    </div>
+  </div>
+
+  <div class="control-group">
+    <label>Mode</label>
+    <div class="tool-row">
+      <button id="drawModeBtn" class="tool-btn active">Draw</button>
+      <button id="eraseModeBtn" class="tool-btn">Erase</button>
+    </div>
+  </div>
+
+  <div class="control-group">
+    <label>Thickness</label>
+    <div class="slider-container">
+      <input type="range" id="thicknessSlider" min="2" max="25" value="8">
+      <span class="val-label" id="thicknessVal">8</span>
+    </div>
+  </div>
+
+  <div class="control-group">
+    <label>Glow</label>
+    <div class="slider-container">
+      <input type="range" id="glowSlider" min="0" max="60" value="25">
+      <span class="val-label" id="glowVal">25</span>
+    </div>
+  </div>
+
+  <div class="control-group" style="margin-top: 5px;">
+    <label>Actions</label>
+    <div class="action-grid">
+      <button id="undoBtn" class="action-btn">Undo</button>
+      <button id="clearBtn" class="action-btn">Clear</button>
+      <button id="downloadBtn" class="action-btn full">Save Masterpiece</button>
+    </div>
+  </div>
+</div>
+
+<div id="initOverlay">
+  <div class="init-title">Where the Sun's Magic Lives</div>
+  <div class="init-sub">A journey with Rapunzel's golden light</div>
+  <svg id="flowerSVG" viewBox="0 0 140 140" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <radialGradient id="stemGrad" cx="50%" cy="80%" r="60%">
+        <stop offset="0%" stop-color="#4a8c2a"/>
+        <stop offset="100%" stop-color="#2d5a1a"/>
+      </radialGradient>
+      <radialGradient id="petalGrad" cx="50%" cy="70%" r="70%">
+        <stop offset="0%" stop-color="#ffe066"/>
+        <stop offset="60%" stop-color="#ffa500"/>
+        <stop offset="100%" stop-color="#c06000"/>
+      </radialGradient>
+      <radialGradient id="coreGrad" cx="50%" cy="40%" r="60%">
+        <stop offset="0%" stop-color="#fff8a0"/>
+        <stop offset="100%" stop-color="#ffd700"/>
+      </radialGradient>
+      <filter id="glow">
+        <feGaussianBlur stdDeviation="3" result="blur"/>
+        <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+    </defs>
+    <path d="M70 140 Q68 110 70 95" stroke="url(#stemGrad)" stroke-width="4" fill="none" stroke-linecap="round"/>
+    <path d="M70 115 Q55 108 50 98 Q62 102 70 108" fill="#3a7a22" opacity="0.9"/>
+    <path d="M70 120 Q85 112 88 100 Q76 106 70 114" fill="#3a7a22" opacity="0.8"/>
+    <ellipse cx="70" cy="72" rx="10" ry="24" fill="url(#petalGrad)" transform="rotate(-25,70,72)" filter="url(#glow)" opacity="0.85"/>
+    <ellipse cx="70" cy="72" rx="10" ry="24" fill="url(#petalGrad)" transform="rotate(25,70,72)" filter="url(#glow)" opacity="0.85"/>
+    <ellipse cx="70" cy="72" rx="10" ry="24" fill="url(#petalGrad)" transform="rotate(-55,70,72)" filter="url(#glow)" opacity="0.75"/>
+    <ellipse cx="70" cy="72" rx="10" ry="24" fill="url(#petalGrad)" transform="rotate(55,70,72)" filter="url(#glow)" opacity="0.75"/>
+    <ellipse cx="70" cy="72" rx="10" ry="24" fill="url(#petalGrad)" transform="rotate(0,70,72)" filter="url(#glow)" opacity="0.9"/>
+    <circle cx="70" cy="68" r="10" fill="url(#coreGrad)" filter="url(#glow)"/>
+    <circle cx="66" cy="64" r="3" fill="rgba(255,255,255,0.5)"/>
+  </svg>
+  <button id="startBtn">✦ Release the Sun's Magic ✦</button>
+</div>
+
+<div id="hud">
+  <div class="hud-label" id="hudLabel"></div>
+  <div class="hud-instruction" id="hudInstruction"></div>
+</div>
+
+<div id="bloomRing">
+  <div id="bloomRingLabel">BLOOM</div>
+  <canvas id="bloomRingCanvas" width="60" height="60"></canvas>
+</div>
+
+<div id="fistTimer">
+  <canvas id="fistTimerCanvas" width="50" height="50"></canvas>
+  <div id="fistTimerLabel">HOLD FIST</div>
+</div>
+
+<div id="stateLabel">CORONA GATES</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+
+<script>
+'use strict';
+
+const STATES = { INIT: 'STATE_INIT', BLOOM: 'STATE_BLOOM', CANVAS: 'STATE_CANVAS', LANTERNS: 'STATE_LANTERNS' };
+
+const APP = {
+  state: STATES.INIT,
+  canvas: null, ctx: null, 
+  drawCanvas: null, drawCtx: null, 
+  width: 0, height: 0,
+  animFrameId: null, time: 0,
+  mp: { hands: null, camera: null, landmarks: null },
+  
+  bloom: { progress: 0.0, particles: [], flowerX: 0, flowerY: 0, burstFired: false },
+
+  drawing: {
+    strokes: [], activeStroke: null,
+    fistHeldMs: 0, fistStartTime: null, FIST_THRESHOLD_MS: 2000,
+    fadeOut: false, fadeAlpha: 1.0, smoothedTip: null,
+    
+    // Brush State
+    color: '#FFD700', swatchIndex: 0,
+    thickness: 8, glow: 25, mode: 'draw'
+  },
+
+  lanterns: { particles: [], _startTime: 0, fadeOut: false, fadeAlpha: 1.0, fistHeldMs: 0, fistStartTime: null }
+};
+
+/* --- UI EVENT LISTENERS --- */
+const swatches = Array.from(document.querySelectorAll('.swatch'));
+swatches.forEach((swatch, idx) => {
+  swatch.addEventListener('click', () => selectColorIndex(idx));
+});
+
+function selectColorIndex(idx) {
+  swatches.forEach(s => s.classList.remove('active'));
+  swatches[idx].classList.add('active');
+  APP.drawing.color = swatches[idx].dataset.color;
+  APP.drawing.swatchIndex = idx;
+  setBrushMode('draw');
+}
+
+function setBrushMode(mode) {
+  APP.drawing.mode = mode;
+  document.getElementById('drawModeBtn').classList.toggle('active', mode === 'draw');
+  document.getElementById('eraseModeBtn').classList.toggle('active', mode === 'erase');
+}
+document.getElementById('drawModeBtn').addEventListener('click', () => setBrushMode('draw'));
+document.getElementById('eraseModeBtn').addEventListener('click', () => setBrushMode('erase'));
+
+document.getElementById('thicknessSlider').addEventListener('input', (e) => {
+  APP.drawing.thickness = parseInt(e.target.value);
+  document.getElementById('thicknessVal').innerText = e.target.value;
+});
+
+document.getElementById('glowSlider').addEventListener('input', (e) => {
+  APP.drawing.glow = parseInt(e.target.value);
+  document.getElementById('glowVal').innerText = e.target.value;
+});
+
+document.getElementById('undoBtn').addEventListener('click', () => { if(APP.drawing.strokes.length) APP.drawing.strokes.pop(); });
+document.getElementById('clearBtn').addEventListener('click', () => { APP.drawing.strokes = []; APP.drawing.activeStroke = null; });
+document.getElementById('downloadBtn').addEventListener('click', () => {
+  const tempCanvas = document.createElement('canvas');
+  tempCanvas.width = APP.width; tempCanvas.height = APP.height;
+  const tempCtx = tempCanvas.getContext('2d');
+  drawTwilightBackground(tempCtx, APP.width, APP.height, APP.time);
+  tempCtx.drawImage(APP.drawCanvas, 0, 0);
+  const link = document.createElement('a');
+  link.download = 'Tangled_Masterpiece.png';
+  link.href = tempCanvas.toDataURL('image/png');
+  link.click();
+});
+
+/* --- MATH & MEDIAPIPE HELPERS --- */
+function landmarkToCanvas(lm) { return { x: (1 - lm.x) * APP.width, y: lm.y * APP.height }; }
+function getDist(a, b) { return Math.sqrt((a.x - b.x)**2 + (a.y - b.y)**2); }
+function lmDistCanvas(lms, idxA, idxB) { return getDist(landmarkToCanvas(lms[idxA]), landmarkToCanvas(lms[idxB])); }
+
+function landmarkDist(a, b) {
+  const ax = (1 - a.x) * APP.width, ay = a.y * APP.height;
+  const bx = (1 - b.x) * APP.width, by = b.y * APP.height;
+  return Math.sqrt((ax - bx) ** 2 + (ay - by) ** 2);
+}
+function getHandOpennessRatio(lms) {
+  const thumbPinkyDist = landmarkDist(lms[4], lms[20]);
+  const handLength     = landmarkDist(lms[0], lms[9]) * 2.2;
+  return thumbPinkyDist / (handLength || 1);
+}
+function getPalmCenter(lms) {
+  let sx = 0, sy = 0;
+  [0, 5, 9, 13, 17].forEach(i => { sx += lms[i].x; sy += lms[i].y; });
+  return { x: (1 - sx / 5) * APP.width, y: (sy / 5) * APP.height };
+}
+
+// Gesture Helpers
+function isFingerExtended(lms, tipIdx) { return lmDistCanvas(lms, 0, tipIdx) > lmDistCanvas(lms, 0, tipIdx - 2); }
+function isIndexPointing(lms) { return isFingerExtended(lms, 8) && !isFingerExtended(lms, 12) && !isFingerExtended(lms, 16) && !isFingerExtended(lms, 20); }
+function isOpenPalm(lms) { return [8, 12, 16, 20].every(idx => isFingerExtended(lms, idx)); }
+function isFist(lms) { return [8, 12, 16, 20].every(idx => !isFingerExtended(lms, idx)); }
+
+/* --- ORIGINAL BLOOM PARTICLES --- */
+class SunParticle {
+  constructor(x, y) {
+    this.x = x; this.y = y;
+    const angle = Math.random() * Math.PI * 2;
+    const speed = Math.random() * 5 + 2;
+    this.vx = Math.cos(angle) * speed; this.vy = Math.sin(angle) * speed;
+    this.radius = Math.random() * 4 + 1.5;
+    this.alpha = Math.random() * 0.6 + 0.4;
+    this.life = 1.0; this.decay = Math.random() * 0.012 + 0.006;
+    this.color = Math.random() > 0.4 ? '#FFD700' : '#FFF275';
+  }
+  update(tx, ty) {
+    const dx = tx - this.x, dy = ty - this.y;
+    const distSq = dx*dx + dy*dy, dist = Math.sqrt(distSq) || 0.001;
+    const accel = Math.min(16000 / distSq, 6.0);
+    this.vx += (dx / dist) * accel; this.vy += (dy / dist) * accel;
+    const speed = Math.sqrt(this.vx*this.vx + this.vy*this.vy);
+    if (speed > 12) { this.vx = (this.vx/speed)*12; this.vy = (this.vy/speed)*12; }
+    this.x += this.vx; this.y += this.vy;
+    this.life -= this.decay; this.alpha = this.life;
+  }
+  draw(ctx) {
+    ctx.save(); ctx.globalAlpha = Math.max(0, this.alpha); ctx.globalCompositeOperation = 'screen';
+    ctx.fillStyle = this.color; ctx.shadowBlur = 14; ctx.shadowColor = this.color;
+    ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+  }
+  isDead() { return this.life <= 0; }
+  isNear(tx, ty, r = 45) { return (tx-this.x)**2 + (ty-this.y)**2 < r*r; }
+}
+
+class BurstParticle {
+  constructor(x, y) {
+    this.x = x; this.y = y;
+    const angle = Math.random() * Math.PI * 2, speed = Math.random() * 14 + 3;
+    this.vx = Math.cos(angle) * speed; this.vy = Math.sin(angle) * speed;
+    this.radius = Math.random() * 6 + 2; 
+    this.life = 1.0; 
+    this.decay = Math.random() * 0.008 + 0.004; // Slower decay for a lingering effect
+    this.color = Math.random() > 0.5 ? '#FFD700' : '#FFFDE0';
+  }
+  update() { 
+    this.vx *= 0.95; this.vy *= 0.95; // Added slight friction so they float beautifully
+    this.x += this.vx; this.y += this.vy; 
+    this.life -= this.decay; 
+  }
+  draw(ctx) {
+    ctx.save(); ctx.globalAlpha = Math.max(0, this.life); ctx.globalCompositeOperation = 'screen';
+    ctx.fillStyle = this.color; ctx.shadowBlur = 24; ctx.shadowColor = '#FFD700';
+    ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+  }
+  isDead() { return this.life <= 0; }
+}
+
+class LanternParticle {
+  constructor(cw, ch) { this.cw = cw; this.ch = ch; this.reset(true); }
+  reset(initial = false) {
+    this.x = Math.random() * this.cw;
+    this.y = initial ? Math.random() * this.ch * 1.2 : this.ch + Math.random() * 100 + 20;
+    this.vy = -(Math.random() * 3.0 + 4.0);
+    this.swaySeed = Math.random() * Math.PI * 2; this.swaySpeed = Math.random() * 0.02 + 0.01; 
+    this.swayAmp = Math.random() * 1.5 + 0.5;
+    this.size = Math.random() * 9 + 6; this.alpha = Math.random() * 0.4 + 0.55;
+    this.uniqueOffset = Math.random() * Math.PI * 2; this.flickerFreq = Math.random() * 0.07 + 0.02;
+    this.vx = (Math.random() - 0.5) * 0.8;
+  }
+  update(t) {
+    this.x += Math.sin(t * this.swaySpeed * 60 + this.swaySeed) * this.swayAmp * 0.35 + this.vx;
+    this.y += this.vy;
+    if (this.x < -30) this.x = this.cw + 30;
+    if (this.x > this.cw + 30) this.x = -30;
+    if (this.y < -50) this.reset(false);
+  }
+  draw(ctx, t, fade) {
+    const flicker = Math.sin(t * this.flickerFreq * 60 + this.uniqueOffset) * 0.15;
+    ctx.save(); ctx.globalAlpha = Math.max(0.15, Math.min(1, this.alpha + flicker)) * fade;
+    const hw = this.size * 0.55, hh = this.size * 0.8;
+    ctx.fillStyle = '#FFD700'; ctx.shadowBlur = 14 + this.size * 0.9; ctx.shadowColor = 'rgba(255, 140, 0, 0.7)';
+    ctx.beginPath(); ctx.moveTo(this.x, this.y - hh);
+    ctx.bezierCurveTo(this.x + hw, this.y - hh * 0.35, this.x + hw * 0.85, this.y + hh * 0.45, this.x, this.y + hh * 0.55);
+    ctx.bezierCurveTo(this.x - hw * 0.85, this.y + hh * 0.45, this.x - hw, this.y - hh * 0.35, this.x, this.y - hh);
+    ctx.fill(); ctx.fillStyle = 'rgba(255, 112, 67, 0.4)'; ctx.shadowBlur = 0; ctx.fill();
+    ctx.fillStyle = '#FFFEE5'; ctx.beginPath(); ctx.arc(this.x, this.y + hh * 0.1, this.size * 0.2, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
+}
+
+/* --- BACKGROUND --- */
+const STARS = Array.from({length: 120}, () => ({
+  x: Math.random(), y: Math.random(), r: Math.random() * 1.2 + 0.3, twinkle: Math.random() * Math.PI * 2,
+}));
+function drawTwilightBackground(ctx, w, h, t) {
+  const bg = ctx.createRadialGradient(w/2, h*0.4, 0, w/2, h*0.4, Math.max(w,h)*0.9);
+  bg.addColorStop(0, '#1a0833'); bg.addColorStop(0.55, '#0d0420'); bg.addColorStop(1, '#0a0216');
+  ctx.fillStyle = bg; ctx.fillRect(0, 0, w, h);
+  STARS.forEach(s => {
+    ctx.save(); ctx.globalAlpha = 0.4 + Math.sin(t * 0.8 + s.twinkle) * 0.35;
+    ctx.fillStyle = '#fff8e7'; ctx.beginPath(); ctx.arc(s.x * w, s.y * h, s.r, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+  });
+}
+
+/* --- ORIGINAL BLOOM PHASE --- */
+function drawBloomFlower(ctx, cx, cy, progress) {
+  const numPetals = 8, maxPetalLen = 170, coreRadius = 35 + progress * 30;
+  if (progress > 0.15) {
+    ctx.save(); const auraGrad = ctx.createRadialGradient(cx, cy, 10, cx, cy, maxPetalLen * progress * 1.3);
+    auraGrad.addColorStop(0, 'rgba(255, 234, 115, 0.25)'); auraGrad.addColorStop(0.5, 'rgba(255, 165, 0, 0.08)'); auraGrad.addColorStop(1, 'transparent');
+    ctx.fillStyle = auraGrad; ctx.globalCompositeOperation = 'screen'; ctx.beginPath(); ctx.arc(cx, cy, maxPetalLen * progress * 1.3, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+  }
+  for (let i = 0; i < numPetals; i++) {
+    const baseAngle = (i / numPetals) * Math.PI * 2, openAngle = baseAngle + progress * 0.3, petalLen = maxPetalLen * progress, petalW = (25 + progress * 45); 
+    ctx.save(); ctx.translate(cx, cy); ctx.rotate(openAngle);
+    const pGrad = ctx.createLinearGradient(0, 0, 0, -petalLen);
+    pGrad.addColorStop(0, '#FFFCE0'); pGrad.addColorStop(0.3, '#FFD700'); pGrad.addColorStop(0.7, 'rgba(255, 140, 0, 0.6)'); pGrad.addColorStop(1, 'rgba(255, 87, 34, 0)');
+    ctx.shadowBlur = 35 + progress * 25; ctx.shadowColor = '#FFB300'; ctx.fillStyle = pGrad; ctx.globalAlpha = 0.88 * progress;
+    ctx.beginPath(); ctx.ellipse(0, -petalLen / 2, petalW / 2, petalLen / 2, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+  }
+  const coreGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, coreRadius);
+  coreGrad.addColorStop(0, '#FFFFFF'); coreGrad.addColorStop(0.4, '#FFF8A0'); coreGrad.addColorStop(0.7, '#FFD700'); coreGrad.addColorStop(1, 'rgba(255,100,0,0)');
+  ctx.save(); ctx.shadowBlur = 45 + progress * 45; ctx.shadowColor = '#FFD700'; ctx.fillStyle = coreGrad; ctx.beginPath(); ctx.arc(cx, cy, coreRadius, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+}
+
+function updateBloom(dt) {
+  const lms = APP.mp.landmarks, { flowerX, flowerY } = APP.bloom;
+  if (APP.bloom.burstFired) {
+    APP.bloom.particles = APP.bloom.particles.filter(p => { p.update(flowerX, flowerY); return !p.isDead(); }); return;
+  }
+  let openHand = false;
+  if (lms) {
+    const palm = getPalmCenter(lms);
+    if (getHandOpennessRatio(lms) > 0.65 && Math.sqrt((palm.x - APP.width/2)**2 + (palm.y - APP.height/2)**2) < 250) {
+      openHand = true;
+      [4, 8, 12, 16, 20].forEach(idx => {
+        const pos = landmarkToCanvas(lms[idx]);
+        for (let i = 0; i < 6; i++) APP.bloom.particles.push(new SunParticle(pos.x, pos.y));
+      });
+    }
+  }
+  let hits = 0;
+  APP.bloom.particles = APP.bloom.particles.filter(p => { p.update(flowerX, flowerY); if (p.isNear(flowerX, flowerY, 50)) { hits++; return false; } return !p.isDead(); });
+  
+  // Slightly slower fill for steadiness
+  if (hits > 0) APP.bloom.progress = Math.min(1.0, APP.bloom.progress + hits * 0.0032);
+  else if (!openHand) APP.bloom.progress = Math.max(0, APP.bloom.progress - 0.002);
+  
+  if (APP.bloom.progress >= 1.0) {
+    APP.bloom.burstFired = true; APP.bloom.particles = [];
+    
+    // Increased particle count for an enveloping magical burst
+    for (let i = 0; i < 450; i++) APP.bloom.particles.push(new BurstParticle(APP.bloom.flowerX, APP.bloom.flowerY));
+    
+    // Smoothly hide the bloom ring/instructions while particles float
+    document.getElementById('bloomRing').classList.remove('visible');
+    document.getElementById('hud').classList.remove('visible');
+
+    // Wait a calm, steady 2.5s before fading in the Drawing UI
+    setTimeout(() => { if (APP.state === STATES.BLOOM) transitionToState(STATES.CANVAS); }, 2500);
+  }
+}
+
+function renderBloom() {
+  drawTwilightBackground(APP.ctx, APP.width, APP.height, APP.time);
+  drawBloomFlower(APP.ctx, APP.bloom.flowerX, APP.bloom.flowerY, APP.bloom.progress);
+  APP.bloom.particles.forEach(p => p.draw(APP.ctx));
+  drawBloomRingUI(); drawHandSkeleton(APP.ctx);
+}
+
+function drawBloomRingUI() {
+  const rc = document.getElementById('bloomRingCanvas').getContext('2d');
+  rc.clearRect(0, 0, 60, 60); rc.beginPath(); rc.arc(30, 30, 22, -Math.PI/2, -Math.PI/2 + APP.bloom.progress * Math.PI * 2);
+  rc.strokeStyle = '#FFD700'; rc.lineWidth = 3; rc.shadowBlur = 8; rc.shadowColor = '#FFD700'; rc.stroke();
+  rc.fillStyle = 'rgba(255,215,0,0.7)'; rc.font = 'bold 10px serif'; rc.textAlign = 'center'; rc.textBaseline = 'middle';
+  rc.fillText(Math.floor(APP.bloom.progress * 100) + '%', 30, 30);
+}
+
+/* --- CANVAS / DRAWING PHASE --- */
+function updateDrawing(timestamp) {
+  const lms = APP.mp.landmarks, d = APP.drawing;
+  
+  if (d.fadeOut) {
+    d.fadeAlpha -= 0.012;
+    if (d.fadeAlpha <= 0) { d.fadeAlpha = 0; transitionToState(STATES.LANTERNS); }
+    return;
+  }
+  
+  let handled = false;
+
+  if (lms) {
+    // Fist -> Transition Timer
+    if (isFist(lms)) {
+      if (!d.fistStartTime) d.fistStartTime = timestamp;
+      d.fistHeldMs = timestamp - d.fistStartTime;
+      if (d.fistHeldMs >= d.FIST_THRESHOLD_MS) { d.fadeOut = true; d.fistStartTime = null; }
+      handled = true;
+    } else {
+      d.fistStartTime = null; d.fistHeldMs = 0;
+    }
+
+    // Open Palm -> Palm Eraser (Radius 60)
+    if (!handled && isOpenPalm(lms)) {
+      let center = getPalmCenter(lms);
+      if (!d.activeStroke || d.activeStroke.type !== 'palm_erase') {
+        if (d.activeStroke) APP.drawing.strokes.push(d.activeStroke);
+        d.activeStroke = { type: 'palm_erase', size: 60, points: [center] };
+      } else {
+        d.activeStroke.points.push(center);
+      }
+      handled = true;
+    }
+
+    // Index Pointing -> Draw or UI-Erase
+    if (!handled && isIndexPointing(lms)) {
+      let rawTip = landmarkToCanvas(lms[8]);
+      if (!d.smoothedTip) d.smoothedTip = {x: rawTip.x, y: rawTip.y};
+      else {
+        d.smoothedTip.x += (rawTip.x - d.smoothedTip.x) * 0.3;
+        d.smoothedTip.y += (rawTip.y - d.smoothedTip.y) * 0.3;
+      }
+
+      if (!d.activeStroke || d.activeStroke.type === 'palm_erase') {
+        if (d.activeStroke) APP.drawing.strokes.push(d.activeStroke);
+        d.activeStroke = { 
+          type: d.mode === 'erase' ? 'ui_erase' : 'draw', 
+          color: d.color, 
+          size: d.thickness, 
+          glow: d.glow, 
+          points: [{x: d.smoothedTip.x, y: d.smoothedTip.y}] 
+        };
+      } else {
+        let last = d.activeStroke.points[d.activeStroke.points.length - 1];
+        if (getDist(last, d.smoothedTip) >= 4) {
+          d.activeStroke.points.push({x: d.smoothedTip.x, y: d.smoothedTip.y});
+        }
+      }
+      handled = true;
+    } else {
+      d.smoothedTip = null;
+    }
+  } else {
+    d.fistStartTime = null; d.fistHeldMs = 0; d.smoothedTip = null;
+  }
+
+  if (!handled && d.activeStroke) {
+    APP.drawing.strokes.push(d.activeStroke);
+    d.activeStroke = null;
+  }
+}
+
+function renderDrawing() {
+  const ctx = APP.ctx, dtCtx = APP.drawCtx, d = APP.drawing, lms = APP.mp.landmarks;
+  
+  drawTwilightBackground(ctx, APP.width, APP.height, APP.time);
+  
+  // Render strokes to offscreen canvas
+  dtCtx.clearRect(0, 0, APP.width, APP.height);
+  dtCtx.lineCap = 'round'; dtCtx.lineJoin = 'round';
+  
+  const allStrokes = [...d.strokes];
+  if (d.activeStroke) allStrokes.push(d.activeStroke);
+
+  for (let s of allStrokes) {
+    if (s.points.length < 1) continue;
+    dtCtx.beginPath();
+    dtCtx.moveTo(s.points[0].x, s.points[0].y);
+    
+    if (s.type === 'palm_erase' || s.type === 'ui_erase') {
+      dtCtx.globalCompositeOperation = 'destination-out';
+      dtCtx.lineWidth = s.type === 'palm_erase' ? s.size * 2 : s.size;
+      dtCtx.shadowBlur = 0;
+      for(let i=1; i<s.points.length; i++) dtCtx.lineTo(s.points[i].x, s.points[i].y);
+      dtCtx.stroke();
+    } else {
+      dtCtx.globalCompositeOperation = 'source-over';
+      dtCtx.lineWidth = s.size; dtCtx.strokeStyle = s.color;
+      dtCtx.shadowColor = s.color; dtCtx.shadowBlur = s.glow;
+      for (let i = 1; i < s.points.length - 1; i++) {
+        let xc = (s.points[i].x + s.points[i + 1].x) / 2;
+        let yc = (s.points[i].y + s.points[i + 1].y) / 2;
+        dtCtx.quadraticCurveTo(s.points[i].x, s.points[i].y, xc, yc);
+      }
+      let last = s.points[s.points.length - 1];
+      if (s.points.length > 1) dtCtx.lineTo(last.x, last.y);
+      dtCtx.stroke();
+    }
+  }
+
+  // Composite Main View
+  ctx.save(); 
+  ctx.globalAlpha = d.fadeAlpha;
+  ctx.drawImage(APP.drawCanvas, 0, 0);
+
+  // Active gesture feedback
+  if (lms && !d.fadeOut) {
+    if (isOpenPalm(lms)) {
+      let center = getPalmCenter(lms);
+      ctx.fillStyle = 'rgba(255,255,255,0.1)'; ctx.beginPath(); ctx.arc(center.x, center.y, 60, 0, Math.PI*2); ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.4)'; ctx.lineWidth = 1; ctx.stroke();
+    } else if (isIndexPointing(lms) && d.smoothedTip) {
+      ctx.fillStyle = d.mode === 'erase' ? '#fff' : d.color;
+      ctx.shadowBlur = 15; ctx.shadowColor = ctx.fillStyle;
+      ctx.beginPath(); ctx.arc(d.smoothedTip.x, d.smoothedTip.y, d.thickness/2 + 2, 0, Math.PI*2); ctx.fill();
+    }
+  }
+  ctx.restore();
+  
+  drawFistTimerUI(d.fistHeldMs, d.FIST_THRESHOLD_MS, d.fadeOut);
+  drawHandSkeleton(ctx);
+}
+
+/* --- LANTERNS PHASE --- */
+function updateLanterns(timestamp) {
+  const lan = APP.lanterns, lms = APP.mp.landmarks;
+  if (lan.fadeOut) {
+    lan.fadeAlpha -= 0.015;
+    if (lan.fadeAlpha <= 0) { lan.fadeAlpha = 0; transitionToState(STATES.CANVAS); }
+    return;
+  }
+  if (lms) {
+    if (isFist(lms)) {
+      if (!lan.fistStartTime) lan.fistStartTime = timestamp;
+      lan.fistHeldMs = timestamp - lan.fistStartTime;
+      if (lan.fistHeldMs >= 2000) lan.fadeOut = true;
+    } else { lan.fistStartTime = null; lan.fistHeldMs = 0; }
+  } else { lan.fistStartTime = null; lan.fistHeldMs = 0; }
+  lan.particles.forEach(p => p.update(APP.time));
+}
+
+function renderLanterns() {
+  const ctx = APP.ctx, w = APP.width, h = APP.height, t = APP.time, lan = APP.lanterns;
+  ctx.save();
+  const skyGrad = ctx.createLinearGradient(0, 0, 0, h); skyGrad.addColorStop(0, '#02000a'); skyGrad.addColorStop(0.5, '#0a0320'); skyGrad.addColorStop(1, '#160638');
+  ctx.fillStyle = skyGrad; ctx.fillRect(0, 0, w, h);
+  STARS.forEach(s => { ctx.save(); ctx.globalAlpha = (0.25 + Math.sin(t * 0.9 + s.twinkle) * 0.22) * lan.fadeAlpha; ctx.fillStyle = '#fff8d6'; ctx.beginPath(); ctx.arc(s.x * w, s.y * h, s.r * 0.85, 0, Math.PI * 2); ctx.fill(); ctx.restore(); });
+  ctx.fillStyle = `rgba(2,0,10,${0.42 * lan.fadeAlpha})`; ctx.fillRect(0, 0, w, h);
+  lan.particles.forEach(p => p.draw(ctx, t, lan.fadeAlpha));
+  
+  const age = t - lan._startTime, holdDuration = 6.5; 
+  if (age < holdDuration && !lan.fadeOut) {
+    let textAlpha = 1.0; if (age < 1.0) textAlpha = age; else if (age > holdDuration - 1.2) textAlpha = (holdDuration - age) / 1.2; 
+    ctx.save(); ctx.globalAlpha = Math.max(0, Math.min(1, textAlpha));
+    const haloGrad = ctx.createRadialGradient(w/2, h/2, 0, w/2, h/2, w * 0.32); haloGrad.addColorStop(0, 'rgba(255,210,60,0.12)'); haloGrad.addColorStop(1, 'transparent');
+    ctx.fillStyle = haloGrad; ctx.fillRect(0, 0, w, h);
+    const fontSize = Math.max(52, Math.min(w * 0.11, 120));
+    ctx.font = `400 ${fontSize}px 'Cinzel Decorative', serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.shadowBlur = 38; ctx.shadowColor = 'rgba(255,200,60,0.55)'; ctx.fillStyle = '#FFE97A'; ctx.fillText('Tangled', w/2, h/2);
+    ctx.globalAlpha = Math.max(0, Math.min(1, textAlpha)) * 0.18 * (0.7 + Math.sin(t * 1.8) * 0.3);
+    ctx.shadowBlur = 60; ctx.shadowColor = '#FFD700'; ctx.fillStyle = '#FFFDE0'; ctx.fillText('Tangled', w/2, h/2); ctx.restore();
+  }
+  ctx.restore(); drawFistTimerUI(lan.fistHeldMs, 2000, lan.fadeOut); drawHandSkeleton(ctx);
+}
+
+/* --- COMMON RENDER & STATE --- */
+function drawHandSkeleton(ctx) {
+  const lms = APP.mp.landmarks; if (!lms) return;
+  const CONNECTIONS = [[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],[9,13],[13,14],[14,15],[15,16],[13,17],[17,18],[18,19],[19,20],[0,17]];
+  ctx.save(); ctx.globalAlpha = 0.25; ctx.strokeStyle = 'rgba(255,215,0,0.8)'; ctx.lineWidth = 1.5; ctx.shadowBlur = 0;
+  CONNECTIONS.forEach(([a, b]) => { const pa = landmarkToCanvas(lms[a]), pb = landmarkToCanvas(lms[b]); ctx.beginPath(); ctx.moveTo(pa.x, pa.y); ctx.lineTo(pb.x, pb.y); ctx.stroke(); });
+  ctx.fillStyle = 'rgba(255,215,0,0.6)'; [4, 8, 12, 16, 20].forEach(idx => { const p = landmarkToCanvas(lms[idx]); ctx.beginPath(); ctx.arc(p.x, p.y, 3.5, 0, Math.PI * 2); ctx.fill(); }); ctx.restore();
+}
+
+function drawFistTimerUI(heldMs, thresholdMs, isFadingOut) {
+  const timerEl = document.getElementById('fistTimer'), rc = document.getElementById('fistTimerCanvas').getContext('2d');
+  if (heldMs > 100 && !isFadingOut) {
+    timerEl.classList.add('visible'); const progress = Math.min(1, heldMs / thresholdMs);
+    rc.clearRect(0, 0, 50, 50); rc.beginPath(); rc.arc(25, 25, 18, -Math.PI/2, -Math.PI/2 + progress * Math.PI * 2);
+    rc.strokeStyle = '#FFD700'; rc.lineWidth = 3; rc.shadowBlur = 8; rc.shadowColor = '#FFD700'; rc.stroke();
+  } else timerEl.classList.remove('visible');
+}
+
+function initCanvas() {
+  APP.canvas = document.getElementById('mainCanvas'); 
+  APP.ctx = APP.canvas.getContext('2d', { willReadFrequently: true });
+  APP.drawCanvas = document.createElement('canvas');
+  APP.drawCtx = APP.drawCanvas.getContext('2d', { willReadFrequently: true });
+
+  window.addEventListener('resize', () => { 
+    APP.width = window.innerWidth; APP.height = window.innerHeight; 
+    APP.canvas.width = APP.width; APP.canvas.height = APP.height; 
+    APP.drawCanvas.width = APP.width; APP.drawCanvas.height = APP.height;
+    APP.bloom.flowerX = APP.width / 2; APP.bloom.flowerY = APP.height / 2; 
+    if (APP.lanterns.particles.length > 0) APP.lanterns.particles.forEach(p => { p.cw = APP.width; p.ch = APP.height; }); 
+  });
+  window.dispatchEvent(new Event('resize'));
+}
+
+function initMediaPipe(videoElement) {
+  const hands = new Hands({ locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}` });
+  hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.75, minTrackingConfidence: 0.85 });
+  hands.onResults(r => { APP.mp.landmarks = (r.multiHandLandmarks && r.multiHandLandmarks.length > 0) ? r.multiHandLandmarks[0] : null; });
+  APP.mp.hands = hands;
+  const camera = new Camera(videoElement, { onFrame: async () => { if (APP.mp.hands) await APP.mp.hands.send({ image: videoElement }); }, width: 640, height: 480 });
+  camera.start(); APP.mp.camera = camera;
+}
+
+const HUD_CONFIG = {
+  [STATES.BLOOM]: { label: 'Open Your Hand at Center', instruction: 'Let the sun\'s magic bloom through your fingertips' },
+  [STATES.CANVAS]: { label: 'Air Canvas Active', instruction: 'Point to Draw • Palm to Erase • Hold Fist to Transition' },
+  [STATES.LANTERNS]: { label: '✦ Festival of Lights ✦', instruction: 'Hold fist to return to canvas' },
+};
+
+function transitionToState(newState) {
+  APP.state = newState; const hudEl = document.getElementById('hud');
+  
+  if (newState === STATES.INIT) {
+    hudEl.classList.remove('visible');
+  } else {
+    document.getElementById('hudLabel').textContent = HUD_CONFIG[newState].label;
+    document.getElementById('hudInstruction').textContent = HUD_CONFIG[newState].instruction;
+    
+    // Smoothly fade in HUD and Brush Controls
+    hudEl.classList.add('visible');
+    document.getElementById('brushControls').classList.toggle('visible', newState === STATES.CANVAS);
+    document.getElementById('bloomRing').classList.toggle('visible', newState === STATES.BLOOM);
+  }
+  
+  if (newState === STATES.BLOOM) { APP.bloom.progress = 0; APP.bloom.particles = []; APP.bloom.burstFired = false; }
+  if (newState === STATES.CANVAS) { 
+    APP.drawing.fistStartTime = null; APP.drawing.fistHeldMs = 0; 
+    APP.drawing.fadeOut = false; APP.drawing.fadeAlpha = 1.0; 
+    APP.drawing.activeStroke = null;
+  }
+  if (newState === STATES.LANTERNS) { 
+    APP.lanterns.particles = []; 
+    for (let i=0; i<400; i++) APP.lanterns.particles.push(new LanternParticle(APP.width, APP.height)); 
+    APP.lanterns._startTime = APP.time; APP.lanterns.fadeOut = false; APP.lanterns.fadeAlpha = 1.0; 
+  }
+}
+
+let lastTimestamp = null;
+function renderLoop(timestamp) {
+  if (!lastTimestamp) lastTimestamp = timestamp;
+  const dt = timestamp - lastTimestamp; lastTimestamp = timestamp; APP.time = timestamp * 0.001;
+
+  if (APP.state === STATES.BLOOM) { updateBloom(dt); renderBloom(); }
+  else if (APP.state === STATES.CANVAS) { updateDrawing(timestamp); renderDrawing(); }
+  else if (APP.state === STATES.LANTERNS) { updateLanterns(timestamp); renderLanterns(); }
+  else drawTwilightBackground(APP.ctx, APP.width, APP.height, APP.time);
+
+  APP.animFrameId = requestAnimationFrame(renderLoop);
+}
+
+document.getElementById('startBtn').addEventListener('click', async () => {
+  const videoEl = document.getElementById('videoFeed');
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480, facingMode: 'user' } });
+    videoEl.srcObject = stream; videoEl.style.display = 'block'; await videoEl.play();
+    document.getElementById('initOverlay').classList.add('fade-out');
+    initMediaPipe(videoEl); transitionToState(STATES.BLOOM);
+  } catch (err) { console.error(err); alert("Camera access required for magic to work!"); }
+});
+
+// --- MAGIC CURSOR FOLLOWER ---
+document.addEventListener('mousemove', e => {
+  const cursor = document.getElementById('cursor');
+  if (cursor) { cursor.style.left = e.clientX + 'px'; cursor.style.top  = e.clientY + 'px'; }
+});
+
+initCanvas(); requestAnimationFrame(renderLoop);
+</script>
+</body>
+</html>
